@@ -1,0 +1,48 @@
+name: Build OrangeFox SM-A300F
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Free Disk Space
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo apt-get clean
+
+    - name: Install Build Tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y g++-multilib lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev git-core gnupg flex bison gperf build-essential curl bc repo
+
+    - name: Sync OrangeFox Sources
+      run: |
+        mkdir ~/orangefox && cd ~/orangefox
+        repo init --depth=1 -u https://gitlab.com -b fox_9.0
+        repo sync -c --no-clone-bundle --no-tags -j$(nproc)
+
+    - name: Clone Device Tree
+      run: |
+        cd ~/orangefox
+        git clone https://github.com -b android-9.0 device/samsung/a300f
+
+    - name: Compile Recovery
+      run: |
+        cd ~/orangefox
+        source build/envsetup.sh
+        lunch omni_a300f-eng
+        export FOX_VERSION="11.0"
+        export OF_MAINTAINER="User"
+        mka recoveryimage -j$(nproc)
+        cd out/target/product/a300f/
+        tar -H ustar -c recovery.img > OrangeFox_a300f.tar
+
+    - name: Upload Flashable Files
+      uses: actions/upload-artifact@v4
+      with:
+        name: OrangeFox-a300f-Odin
+        path: |
+          /home/runner/orangefox/out/target/product/a300f/OrangeFox_a300f.tar
+          /home/runner/orangefox/out/target/product/a300f/OrangeFox-*.zip
